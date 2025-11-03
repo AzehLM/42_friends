@@ -1,30 +1,224 @@
+// Calculate Easter date for a given year (Computus algorithm)
+function getEasterDate(year) {
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31);
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(year, month - 1, day);
+}
+
+// Get France public holidays for a given year
+function getFrancePublicHolidays(year) {
+    const holidays = [];
+
+    // Fixed holidays
+    holidays.push(new Date(year, 0, 1));   // New Year's Day
+    holidays.push(new Date(year, 4, 1));   // Labour Day
+    holidays.push(new Date(year, 4, 8));   // Victory in Europe Day
+    holidays.push(new Date(year, 6, 14));  // Bastille Day
+    holidays.push(new Date(year, 7, 15));  // Assumption of Mary
+    holidays.push(new Date(year, 10, 1));  // All Saints' Day
+    holidays.push(new Date(year, 10, 11)); // Armistice Day
+    holidays.push(new Date(year, 11, 25)); // Christmas Day
+
+    // Easter-based holidays
+    const easter = getEasterDate(year);
+    const easterMonday = new Date(easter);
+    easterMonday.setDate(easter.getDate() + 1);
+    holidays.push(easterMonday); // Easter Monday
+
+    const ascension = new Date(easter);
+    ascension.setDate(easter.getDate() + 39);
+    holidays.push(ascension); // Ascension Day
+
+    const pentecostMonday = new Date(easter);
+    pentecostMonday.setDate(easter.getDate() + 50);
+    holidays.push(pentecostMonday); // Whit Monday
+
+    return holidays;
+}
+
+// Calculate working days in current month (excluding weekends and France public holidays)
+function getWorkingDaysInMonth() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+
+    const holidays = getFrancePublicHolidays(year);
+    const holidayStrings = holidays.map(h => h.toISOString().split('T')[0]);
+
+    let workingDays = 0;
+
+    for (let day = 1; day <= lastDay.getDate(); day++) {
+        const currentDate = new Date(year, month, day);
+        const dayOfWeek = currentDate.getDay();
+        const dateString = currentDate.toISOString().split('T')[0];
+
+        // Skip weekends (0 = Sunday, 6 = Saturday)
+        if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+
+        // Skip public holidays
+        if (holidayStrings.includes(dateString)) continue;
+
+        workingDays++;
+    }
+
+    return workingDays;
+}
+
+// Convert progress ratio (0-1) to color gradient using custom palette
+function getProgressColor(ratio) {
+    // Clamp ratio between 0 and 1
+    ratio = Math.max(0, Math.min(1, ratio));
+
+    // Color palette from warm to cool tones
+    const colors = [
+        { r: 255, g: 250, b: 230 }, // Cosmic Latte #FFFAE6
+        { r: 249, g: 236, b: 217 }, // Antique White #F9ECD9
+        { r: 247, g: 227, b: 204 }, // Champagne #F7E3CC
+        { r: 247, g: 206, b: 226 }, // Classic Rose #F7CEE2
+        { r: 204, g: 202, b: 240 }, // Soap #CCCAF0
+        { r: 171, g: 235, b: 180 }  // Darker Azure (darker than #CFDFEF)
+    ];
+
+    // Calculate which two colors to interpolate between
+    const scaledRatio = ratio * (colors.length - 1);
+    const lowerIndex = Math.floor(scaledRatio);
+    const upperIndex = Math.min(lowerIndex + 1, colors.length - 1);
+    const localRatio = scaledRatio - lowerIndex;
+
+    // Interpolate between the two colors
+    const lower = colors[lowerIndex];
+    const upper = colors[upperIndex];
+
+    const r = Math.round(lower.r + (upper.r - lower.r) * localRatio);
+    const g = Math.round(lower.g + (upper.g - lower.g) * localRatio);
+    const b = Math.round(lower.b + (upper.b - lower.b) * localRatio);
+
+    return `rgb(${r}, ${g}, ${b})`;
+}
+
 function displayLogtime(depth = 0) {
     const container = document.getElementById("user-locations");
     if (!container) return;
 
     const element = container.children.item(container.children.length - 1);
-    const logtimeValue = element?.getAttribute("data-original-title");
+    let logtimeValue = element?.getAttribute("data-original-title");
 
     if (depth < 10 && (!element || logtimeValue === "0h00 (0h00)" || logtimeValue === "0h00")) {
         setTimeout(() => displayLogtime(depth + 1), 1000);
         return;
     }
 
-    const displayContainer = document.getElementsByClassName("user-data").item(0);
-    if (!displayContainer) return;
+    let containerAvailability = document.getElementById("attendance_container");
 
-    const displayDiv = document.createElement("div");
-    displayDiv.classList.add("user-header-box", "location");
+    // Check for test override
+    const testHours = localStorage.getItem("test_monthly_hours");
+    if (testHours) {
+        const testMinutes = localStorage.getItem("test_monthly_minutes") || "0";
+        logtimeValue = `5h30 (${testHours}h${testMinutes.padStart(2, '0')})`;
+    }
 
     const logtimeText = document.createElement("div");
-    logtimeText.textContent = "Current Logtime";
+    logtimeText.style.cssText = "width: 100%; text-align: center; font-size: 12px; padding-top: 5px; padding-left: 30px;";
 
-    const logTimeValue = document.createElement("div");
-    logTimeValue.textContent = logtimeValue || "N/A";
+    // Parse the logtime value to extract daily and monthly hours
+    if (logtimeValue && logtimeValue.includes("(")) {
+        const parts = logtimeValue.match(/^(.+?)\s*\((.+?)\)$/);
+        if (parts) {
+            const dailyTime = parts[1]; // e.g., "5h30"
+            const monthlyTime = parts[2]; // e.g., "120h45"
 
-    displayDiv.appendChild(logtimeText);
-    displayDiv.appendChild(logTimeValue);
-    displayContainer.appendChild(displayDiv);
+            // Parse monthly hours
+            const monthlyMatch = monthlyTime.match(/(\d+)h(\d+)/);
+            if (monthlyMatch) {
+                const monthlyHours = parseInt(monthlyMatch[1]);
+                const monthlyMinutes = parseInt(monthlyMatch[2]);
+                const totalMonthlyHours = monthlyHours + monthlyMinutes / 60;
+
+                // Calculate required hours for the month
+                const workingDays = getWorkingDaysInMonth();
+                const requiredHours = workingDays * 7;
+
+                // Calculate ratio and get color
+                const ratio = totalMonthlyHours / requiredHours;
+                const color = getProgressColor(ratio);
+
+                // Create the text with colored monthly time
+                logtimeText.innerHTML = `Current Logtime ${dailyTime} (<span style="color: ${color}; font-weight: bold;">${monthlyTime}</span>)`;
+            } else {
+                logtimeText.textContent = "Current Logtime " + logtimeValue;
+            }
+        } else {
+            logtimeText.textContent = "Current Logtime " + logtimeValue;
+        }
+    } else {
+        logtimeText.textContent = "Current Logtime " + (logtimeValue || "N/A");
+    }
+
+    containerAvailability.appendChild(logtimeText);
+
+    // Add testing controls (comment out when done testing)
+    const testContainer = document.createElement("div");
+    testContainer.style.cssText = "width: 100%; text-align: center; font-size: 11px; padding: 10px; background: #2a2d35; border-radius: 5px; margin-top: 10px;";
+
+    const workingDays = getWorkingDaysInMonth();
+    const requiredHours = workingDays * 7;
+
+    // testContainer.innerHTML = `
+    //     <div style="margin-bottom: 8px; color: #a0a0a0;">
+    //         Testing Controls (Working days: ${workingDays}, Required: ${requiredHours}h)
+    //     </div>
+    //     <div style="display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;">
+    //         <label style="color: #ccc;">Monthly hours:</label>
+    //         <input type="number" id="test-hours-input" min="0" max="999" placeholder="Hours"
+    //                value="${testHours || ''}"
+    //                style="width: 60px; padding: 4px; background: #373c48; border: 1px solid #555; color: white; border-radius: 3px;">
+    //         <input type="number" id="test-minutes-input" min="0" max="59" placeholder="Min"
+    //                value="${localStorage.getItem("test_monthly_minutes") || ''}"
+    //                style="width: 50px; padding: 4px; background: #373c48; border: 1px solid #555; color: white; border-radius: 3px;">
+    //         <button id="apply-test-btn" style="padding: 4px 12px; background: #4a90e2; color: white; border: none; border-radius: 3px; cursor: pointer;">Apply</button>
+    //         <button id="reset-test-btn" style="padding: 4px 12px; background: #e24a4a; color: white; border: none; border-radius: 3px; cursor: pointer;">Reset</button>
+    //     </div>
+    //     <div style="margin-top: 8px; font-size: 10px; color: #888;">
+    //         Quick test:
+    //         <span style="cursor: pointer; color: #FFFAE6; margin: 0 5px;" onclick="document.getElementById('test-hours-input').value='0'; document.getElementById('test-minutes-input').value='0'; document.getElementById('apply-test-btn').click();">0h (cosmic latte)</span>
+    //         <span style="cursor: pointer; color: #F7CEE2; margin: 0 5px;" onclick="document.getElementById('test-hours-input').value='${Math.floor(requiredHours * 0.5)}'; document.getElementById('test-minutes-input').value='0'; document.getElementById('apply-test-btn').click();">${Math.floor(requiredHours * 0.5)}h (rose)</span>
+    //         <span style="cursor: pointer; color: rgb(175, 195, 220); margin: 0 5px;" onclick="document.getElementById('test-hours-input').value='${requiredHours}'; document.getElementById('test-minutes-input').value='0'; document.getElementById('apply-test-btn').click();">${requiredHours}h (azure)</span>
+    //     </div>
+    // `;
+
+    // containerAvailability.appendChild(testContainer);
+
+    // document.getElementById("apply-test-btn").onclick = () => {
+    //     const hours = document.getElementById("test-hours-input").value;
+    //     const minutes = document.getElementById("test-minutes-input").value || "0";
+    //     if (hours !== "") {
+    //         localStorage.setItem("test_monthly_hours", hours);
+    //         localStorage.setItem("test_monthly_minutes", minutes);
+    //         location.reload();
+    //     }
+    // };
+
+    // document.getElementById("reset-test-btn").onclick = () => {
+    //     localStorage.removeItem("test_monthly_hours");
+    //     localStorage.removeItem("test_monthly_minutes");
+    //     location.reload();
+    // };
+
 }
 
 function getMondayAndSunday(dateStr) {
@@ -73,7 +267,7 @@ function addTooltipOnHover(element, title) {
     tooltip.style.zIndex = "1000";
     tooltip.style.display = "none";
     document.body.appendChild(tooltip);
-  
+
     // Positionner le tooltip lors du hover
     const onMouseEnter = (e) => {
       tooltip.style.display = "block";
@@ -81,16 +275,16 @@ function addTooltipOnHover(element, title) {
       tooltip.style.left = `${rect.left + window.scrollX}px`;
       tooltip.style.top = `${rect.top + window.scrollY - tooltip.offsetHeight - 6}px`;
     };
-  
+
     const onMouseLeave = () => {
       tooltip.style.display = "none";
     };
-  
+
     const onMouseMove = (e) => {
       tooltip.style.left = `${e.pageX + 10}px`;
       tooltip.style.top = `${e.pageY + 10}px`;
     };
-  
+
     // Ajouter les listeners sans supprimer les autres
     element.addEventListener("mouseenter", onMouseEnter);
     element.addEventListener("mouseleave", onMouseLeave);
@@ -115,40 +309,96 @@ function saveFriendList(list) {
     localStorage.setItem("friend_list", JSON.stringify(list));
 }
 
-async function displayFriend(content, friend, date_range, today, friend_object, log_time_object) {
+// Cache management functions
+const CACHE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+
+function getCachedFriendData(friend) {
+    const cacheKey = `friend_cache_${friend}`;
+    const cached = localStorage.getItem(cacheKey);
+
+    if (!cached) return null;
+
+    try {
+        const { data, timestamp } = JSON.parse(cached);
+        const age = Date.now() - timestamp;
+
+        if (age < CACHE_EXPIRY_MS) {
+            return data;
+        } else {
+            localStorage.removeItem(cacheKey);
+            return null;
+        }
+    } catch (e) {
+        localStorage.removeItem(cacheKey);
+        return null;
+    }
+}
+
+function setCachedFriendData(friend, data) {
+    const cacheKey = `friend_cache_${friend}`;
+    const cacheData = {
+        data: data,
+        timestamp: Date.now()
+    };
+    localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+}
+
+function clearFriendCache(friend) {
+    if (friend) {
+        localStorage.removeItem(`friend_cache_${friend}`);
+    } else {
+        // Clear all friend caches
+        const keys = Object.keys(localStorage);
+        keys.forEach(key => {
+            if (key.startsWith('friend_cache_')) {
+                localStorage.removeItem(key);
+            }
+        });
+    }
+}
+
+// Fetch friend data with caching and retry logic
+async function fetchFriendData(friend, retries = 2) {
+    // Check cache first
+    const cached = getCachedFriendData(friend);
+    if (cached) {
+        return cached;
+    }
+
+    // Fetch with retry logic
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const URL = "https://profile.intra.42.fr/users/" + friend;
+            const friend_object = await fetch(URL, { credentials: "include" }).then(res => res.json());
+
+            if (!Object.keys(friend_object).length) {
+                return null; // Invalid friend
+            }
+
+            const log_time_object = await fetch(`https://translate.intra.42.fr/users/${friend}/locations_stats.json`, {
+                credentials: "include",
+            }).then(res => res.json());
+
+            const data = { friend, friend_object, log_time_object };
+
+            // Cache the successful result
+            setCachedFriendData(friend, data);
+
+            return data;
+        } catch (error) {
+            if (attempt === retries) {
+                console.warn(`Failed to load data for ${friend} after ${retries + 1} attempts:`, error);
+                throw error;
+            }
+            // Wait before retrying (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+        }
+    }
+}
+
+function displayFriend(content, friend, date_range, today, friend_object, log_time_object) {
     try {
         const URL = "https://profile.intra.42.fr/users/" + friend;
-
-        const friend_object = await fetch(URL, {
-            credentials: "include",
-        }).then(res => res.json());
-
-        if (!Object.keys(friend_object).length) {
-            const new_friend_list = getFriendList().filter(val => val != friend);
-            saveFriendList(new_friend_list);
-            location.reload();
-        }
-
-        const log_time_object = await fetch(`https://translate.intra.42.fr/users/${friend}/locations_stats.json`, {
-            credentials: "include",
-        }).then(res => res.json());
-
-        const totalMs = date_range.reduce((sum, date) => {
-            if (log_time_object[date]) {
-                const [h, m, s] = log_time_object[date].split(':');
-                const [sec, ms = '0'] = s.split('.');
-                const timeMs =
-                    parseInt(h) * 3600000 +
-                    parseInt(m) * 60000 +
-                    parseInt(sec) * 1000 +
-                    parseInt(ms.padEnd(3, '0').slice(0, 3));
-                return sum + timeMs;
-            }
-            return sum;
-        }, 0);
-
-        const hours = Math.floor(totalMs / 3600000);
-        const minutes = Math.floor((totalMs % 3600000) / 60000);
 
         const item = document.createElement("div");
         item.style = "display:flex;align-items:center;gap:10px;margin-bottom:.5rem;cursor:pointer;transition:background 0.2s ease;padding: 5px; border-radius: 10px;";
@@ -170,33 +420,38 @@ async function displayFriend(content, friend, date_range, today, friend_object, 
         const login = document.createElement("div");
         login.textContent = friend;
 
-        const dailyLogtime = document.createElement("div");
+        // Display daily logtime or last seen
+        const infoDisplay = document.createElement("div");
+
         if (log_time_object[today]) {
             const [dailyHours, dailyMinutes] = log_time_object[today].split(':');
-            dailyLogtime.textContent = "" + dailyHours + "h" + (dailyMinutes || "00");
+            infoDisplay.textContent = "(" + dailyHours + "h" + (dailyMinutes || "00") + ")";
         } else {
-            dailyLogtime.textContent = "0h00";
+            infoDisplay.textContent = "(0h00)";
         }
 
-        const weeklyLogtime = document.createElement("div");
-        weeklyLogtime.textContent = "(" + hours + "h" + minutes + ")";
+
+        const clusterPosition = document.createElement("div");
+        clusterPosition.style = "margin-left: auto; margin-right: 10px; font-size: 14px; color: #b8b8b8;";
+        if (friend_object.location) {
+            clusterPosition.textContent = friend_object.location;
+            clusterPosition.style.cursor = "pointer";
+            clusterPosition.style.color = "#4a90e2";
+            clusterPosition.onclick = (event) => {
+                event.stopPropagation();
+                window.open("https://meta.intra.42.fr/clusters#" + friend_object.location, "_blank");
+            };
+            addTooltipOnHover(clusterPosition, "Click to view on cluster map");
+        } else {
+            clusterPosition.textContent = "Offline";
+        }
 
         const optionContainer = document.createElement("div");
-        optionContainer.style = `margin-left: auto; display: flex;`;
+        optionContainer.style = `display: flex;`;
 
 
         const connectionPellet = document.createElement("div");
-        connectionPellet.style = `width: 20px; aspect-ratio: 1/1; background-color: ${friend_object.location ? "green" : "red"}; border-radius: 50%;`;
-
-        addTooltipOnHover(connectionPellet, friend_object.location ? "Connected at " + friend_object.location : "Disconected")
-        if (friend_object) {
-
-            connectionPellet.onclick = (event) => {
-                event.stopPropagation()
-                
-                window.open("https://meta.intra.42.fr/clusters#" + friend_object.location, "_blank")
-            }
-        }
+        connectionPellet.style = `width: 12px; aspect-ratio: 1/1; background-color: ${friend_object.location ? "green" : "red"}; border-radius: 50%;`;
 
         const gapDiv = document.createElement("div");
         gapDiv.style = "height: 100%; width: 0; transition: all .5s;"
@@ -204,7 +459,7 @@ async function displayFriend(content, friend, date_range, today, friend_object, 
         const deleteFriend = document.createElement("div");
         deleteFriend.style = `
           width: 0;
-          height: 20px;
+          height: 12px;
           border-radius: 50%;
           margin-right: 1rem;
           transition: all .5s;
@@ -214,7 +469,7 @@ async function displayFriend(content, friend, date_range, today, friend_object, 
           background-color: transparent;
           cursor: pointer;
         `;
-        
+
         const crossSVG = `
         <svg fill="white" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
           <g id="SVGRepo_iconCarrier">
@@ -222,29 +477,29 @@ async function displayFriend(content, friend, date_range, today, friend_object, 
           </g>
         </svg>
         `;
-        
+
         deleteFriend.innerHTML = crossSVG;
         const deleteFriendTooltip = addTooltipOnHover(deleteFriend, "Delete Friend")
         deleteFriend.onclick = (event) => {
             event.stopPropagation();
-        
+
             if (!confirm(`Are you sure you want to delete ${friend} from your friend list?`)) return;
-        
+
             const updatedList = getFriendList().filter(val => val !== friend);
             saveFriendList(updatedList);
-        
+
             deleteFriendTooltip.remove()
             item.remove();
-        
+
             if (updatedList.length === 0) {
                 const content = item.parentElement;
                 const noFriendContainer = document.createElement("div")
                 noFriendContainer.style = "width: 100%; height: 100%; padding: 3rem;"
-        
+
                 const noFriend = document.createElement("div")
                 noFriend.style = "width: 100%; height: 100%; border: 5px #f2f2f2 dashed; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #f2f2f2; font-family: arial; font-size: 20px"
                 noFriend.textContent = "Add friends to show them here"
-        
+
                 noFriendContainer.appendChild(noFriend)
                 content.appendChild(noFriendContainer)
             }
@@ -262,8 +517,8 @@ async function displayFriend(content, friend, date_range, today, friend_object, 
 
         item.appendChild(photo);
         item.appendChild(login);
-        item.appendChild(dailyLogtime);
-        item.appendChild(weeklyLogtime);
+        item.appendChild(infoDisplay);
+        item.appendChild(clusterPosition);
         optionContainer.appendChild(deleteFriend)
         optionContainer.appendChild(gapDiv)
         optionContainer.appendChild(connectionPellet)
@@ -274,8 +529,97 @@ async function displayFriend(content, friend, date_range, today, friend_object, 
     }
 }
 
-async function displayFriends() {
+// Helper function to render friends list
+async function renderFriendsList(content, sortPreference) {
+    const today = new Date().toISOString().split('T')[0];
+    const { monday, sunday } = getMondayAndSunday(today);
+    const date_range = getDateRange(monday, sunday);
+
     let FRIEND_LIST = getFriendList();
+
+    // Clear content
+    content.innerHTML = '';
+
+    // Show loading indicator
+    const loadingDiv = document.createElement("div");
+    loadingDiv.style = "display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; color: #f2f2f2;";
+    loadingDiv.innerHTML = `
+        <div style="font-size: 16px; margin-bottom: 10px;">Loading friends...</div>
+        <div style="width: 30px; height: 30px; border: 3px solid #f2f2f2; border-top: 3px solid transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+    `;
+    content.appendChild(loadingDiv);
+
+    if (!FRIEND_LIST.length) {
+        content.innerHTML = '';
+        const noFriendContainer = document.createElement("div");
+        noFriendContainer.style = "width: 100%; height: 100%; padding: 3rem;";
+
+        const noFriend = document.createElement("div");
+        noFriend.style = "width: 100%; height: 100%; border: 5px #f2f2f2 dashed; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #f2f2f2; font-family: arial; font-size: 20px";
+        noFriend.textContent = "Add friends to show them here";
+
+        noFriendContainer.appendChild(noFriend);
+        content.appendChild(noFriendContainer);
+        return;
+    }
+
+    try {
+        // Fetch all friend data in parallel with caching and retry
+        const friendPromises = FRIEND_LIST.map(friend => fetchFriendData(friend));
+        const results = await Promise.all(friendPromises);
+        const friendDataList = results.filter(data => data !== null);
+
+        // Clean up invalid friends from storage
+        if (friendDataList.length !== FRIEND_LIST.length) {
+            const validFriends = friendDataList.map(data => data.friend);
+            saveFriendList(validFriends);
+            FRIEND_LIST = validFriends;
+        }
+
+        // Sort friends
+        switch (sortPreference) {
+            case "Alphabetical (A-Z)":
+                friendDataList.sort((a, b) => a.friend.localeCompare(b.friend));
+                break;
+            case "Alphabetical (Z-A)":
+                friendDataList.sort((a, b) => b.friend.localeCompare(a.friend));
+                break;
+            case "Online First":
+                friendDataList.sort((a, b) => (b.friend_object.location ? 1 : 0) - (a.friend_object.location ? 1 : 0));
+                break;
+            case "Offline First":
+                friendDataList.sort((a, b) => (a.friend_object.location ? 1 : 0) - (b.friend_object.location ? 1 : 0));
+                break;
+        }
+
+        // Clear loading indicator
+        content.innerHTML = '';
+
+        // Display friends
+        for (const { friend, friend_object, log_time_object } of friendDataList) {
+            displayFriend(content, friend, date_range, today, friend_object, log_time_object);
+        }
+
+    } catch (error) {
+        content.innerHTML = '';
+        const errorDiv = document.createElement("div");
+        errorDiv.style = "display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; color: #f2f2f2; padding: 20px; text-align: center;";
+        errorDiv.innerHTML = `
+            <div style="font-size: 16px; margin-bottom: 10px; color: #ff6b6b;">Failed to load friends</div>
+            <div style="font-size: 14px; margin-bottom: 15px; opacity: 0.8;">There was an error loading your friend list</div>
+            <button id="retry-friends-btn" style="padding: 8px 16px; background-color: #4a90e2; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">Retry</button>
+        `;
+        content.appendChild(errorDiv);
+
+        // Add retry functionality
+        document.getElementById('retry-friends-btn').onclick = () => {
+            renderFriendsList(content, sortPreference);
+        };
+    }
+}
+
+async function displayFriends() {
     const sortPreference = localStorage.getItem("friend_sort") || "Alphabetical (A-Z)";
 
     const photoElement = document.getElementsByClassName("container-inner-item profile-item-top profile-banner home-banner flex flex-direction-row")[0];
@@ -286,10 +630,10 @@ async function displayFriends() {
 
     const friendContainer = document.createElement("div");
     friendContainer.className = "col-lg-4 col-md-6 col-xs-12 fixed-height";
-    
+
     const inner = document.createElement("div");
     inner.className = "container-inner-item boxed agenda-container";
-    inner.style = "border-radius: 30px";
+    inner.style = "border-radius: 5px";
 
     const title = document.createElement("h4");
     title.className = "profile-title";
@@ -298,7 +642,6 @@ async function displayFriends() {
     const menu = document.createElement("span");
     menu.className = "pull-right";
 
-    // Dropdown Add Friend (inchangé)
     const dropDown = document.createElement("span");
     dropDown.className = "dropdown event_search_dropdown";
 
@@ -326,14 +669,24 @@ async function displayFriends() {
     dropDownInput.style = "margin: 5px; padding: 5px; width: 80%; color: white; outline: none; background-color: #373c48; border: none;";
     dropDownTitle.onclick = () => {setTimeout(() => dropDownInput.focus(), 10)};
 
-    dropDownInput.addEventListener("keydown", (e) => {
+    dropDownInput.addEventListener("keydown", async (e) => {
         if (e.key === "Enter") {
             const newFriend = dropDownInput.value.trim().toLowerCase();
-            if (newFriend && !FRIEND_LIST.includes(newFriend)) {
-                FRIEND_LIST.push(newFriend);
-                saveFriendList(FRIEND_LIST);
-                location.reload();
+            let FRIEND_LIST = getFriendList();
+
+            if (!newFriend) return;
+
+            if (FRIEND_LIST.includes(newFriend)) {
+                alert("Friend already in list!");
+                return;
             }
+
+            FRIEND_LIST.push(newFriend);
+            saveFriendList(FRIEND_LIST);
+            dropDownInput.value = '';
+
+            // Re-render without page reload
+            await renderFriendsList(content, localStorage.getItem("friend_sort") || "Alphabetical (A-Z)");
         }
     });
 
@@ -368,9 +721,17 @@ async function displayFriends() {
         option.style = "cursor: pointer; padding: 5px;";
         if (opt === sortPreference) option.style.backgroundColor = "#2c2c2c";
 
-        option.onclick = () => {
+        option.onclick = async () => {
             localStorage.setItem("friend_sort", opt);
-            location.reload();
+
+            // Update all options styling
+            sortOptions.forEach(o => {
+                const optEl = Array.from(sortContent.children).find(el => el.textContent === o);
+                if (optEl) optEl.style.backgroundColor = o === opt ? "#2c2c2c" : "transparent";
+            });
+
+            // Re-render without page reload
+            await renderFriendsList(content, opt);
         };
 
         sortContent.appendChild(option);
@@ -385,75 +746,23 @@ async function displayFriends() {
     content.className = "overflowable-item";
     content.style = "width: 100%; height: 100%;";
 
-    const today = new Date().toISOString().split('T')[0];
-    const { monday, sunday } = getMondayAndSunday(today);
-    const date_range = getDateRange(monday, sunday);
-
-    const friendDataList = [];
-
-    for (const friend of FRIEND_LIST) {
-        try {
-            const URL = "https://profile.intra.42.fr/users/" + friend;
-            const friend_object = await fetch(URL, { credentials: "include" }).then(res => res.json());
-
-            if (!Object.keys(friend_object).length) {
-                const new_friend_list = FRIEND_LIST.filter(val => val != friend);
-                saveFriendList(new_friend_list);
-                location.reload();
-                return;
-            }
-
-            const log_time_object = await fetch(`https://translate.intra.42.fr/users/${friend}/locations_stats.json`, {
-                credentials: "include",
-            }).then(res => res.json());
-
-            friendDataList.push({ friend, friend_object, log_time_object });
-
-        } catch (error) {
-            console.warn(`Failed to load data for ${friend}:`, error);
-        }
-    }
-
-    switch (sortPreference) {
-        case "Alphabetical (A-Z)":
-            friendDataList.sort((a, b) => a.friend.localeCompare(b.friend));
-            break;
-        case "Alphabetical (Z-A)":
-            friendDataList.sort((a, b) => b.friend.localeCompare(a.friend));
-            break;
-        case "Online First":
-            friendDataList.sort((a, b) => (b.friend_object.location ? 1 : 0) - (a.friend_object.location ? 1 : 0));
-            break;
-        case "Offline First":
-            friendDataList.sort((a, b) => (a.friend_object.location ? 1 : 0) - (b.friend_object.location ? 1 : 0));
-            break;
-    }
-
-    for (const { friend, friend_object, log_time_object } of friendDataList) {
-        await displayFriend(content, friend, date_range, today, friend_object, log_time_object);
-    }
-
-    if (!FRIEND_LIST.length) {
-        const noFriendContainer = document.createElement("div");
-        noFriendContainer.style = "width: 100%; height: 100%; padding: 3rem;";
-        
-        const noFriend = document.createElement("div");
-        noFriend.style = "width: 100%; height: 100%; border: 5px #f2f2f2 dashed; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #f2f2f2; font-family: arial; font-size: 20px";
-        noFriend.textContent = "Add friends to show them here";
-        
-        noFriendContainer.appendChild(noFriend);
-        content.appendChild(noFriendContainer);
-    }
-
     inner.appendChild(title);
     inner.appendChild(content);
     friendContainer.appendChild(inner);
     rowElem.firstElementChild.insertBefore(friendContainer, rowElem.firstElementChild.firstChild);
+
+    // Initial render
+    await renderFriendsList(content, sortPreference);
 }
 
 
 function betterDisplay() {
     setTimeout(() => {
+        // Check if already processed to prevent conflicts
+        if (document.querySelector('.progressive-blur-container')) {
+            console.log('42 Friends: betterDisplay already applied, skipping');
+            return;
+        }
 
         const elements = document.getElementsByClassName("improved-intra-banner customized")
         let image = "url(https://profile.intra.42.fr/assets/background_login-a4e0666f73c02f025f590b474b394fd86e1cae20e95261a6e4862c2d0faa1b04.jpg)"
@@ -466,26 +775,15 @@ function betterDisplay() {
         val[0].style.setProperty("background-image", "unset", "important");
         val[0].style.setProperty("background-color", "transparent", "important");
         document.getElementsByClassName("container-item profile-item full-width")[0].style.setProperty("background-color", "transparent", "important")
-        console.log(document.getElementsByClassName("page-content page-content-fluid")[0])
-        document.getElementsByClassName("page-content page-content-fluid")[0].style = "background-image: " + image
-        const container = document.getElementsByClassName("container-fullsize full-width fixed-height")[0];
-        document.getElementsByTagName("footer")[0].style = "z-index: 999;"
 
-        document.getElementsByClassName("page-sidebar left-main-container page-sidebar-fixed-left under-main-navbar")[0].style = "z-index: 99; width: 0;"
-
-        document.getElementsByClassName("main-navbar")[0].style = "position: fixed; top: 0; width: 100vw;"
-
-        const buttonsList = document.getElementsByClassName("pull-right button-actions margin-right-42")[0];
-        buttonsList.remove();
-        
-        const bannerContainer = document.getElementsByClassName("user-banner margin-left-38 margin-right-10 visible-lg hidden-md")[0];
-        bannerContainer.appendChild(buttonsList);
-        buttonsList.className = "button-actions"
-
-        console.log(container.firstElementChild)
-
-        container.style.setProperty("position", "relative", "important");
-        container.style.setProperty("z-index", "2", "important");
+        const pageContent = document.getElementsByClassName("page-content page-content-fluid")[0];
+        console.log(pageContent)
+        // Fix: Properly set background properties to prevent duplication
+        pageContent.style.backgroundImage = image;
+        pageContent.style.backgroundSize = "cover";
+        pageContent.style.backgroundPosition = "center";
+        pageContent.style.backgroundRepeat = "no-repeat";
+        pageContent.style.backgroundAttachment = "fixed";
 
         const blurContainer = document.createElement("div");
         blurContainer.className = "progressive-blur-container";
@@ -537,143 +835,40 @@ function betterDisplay() {
 
         const rowElement = document.getElementsByClassName("col-lg-4 col-md-6 col-xs-12 fixed-height")
         for (const element of rowElement) {
-            element.firstElementChild.style = "border-radius: 30px; "
+            element.firstElementChild.style = "border-radius: 5px; "
         }
-        
+
+        // S'assurer que les informations utilisateur restent visibles
+        const userColumn = document.querySelector('.user-column.flex.flex-direction-column');
+        if (userColumn) {
+            userColumn.style.display = 'flex';
+            userColumn.style.flexDirection = 'column';
+            userColumn.style.visibility = 'visible';
+        }
+
+        const userPrimary = document.querySelector('.user-column .user-primary');
+        if (userPrimary) {
+            userPrimary.style.display = 'block';
+            userPrimary.style.visibility = 'visible';
+        }
+
+        const userInfosContainer = document.querySelector('.col-sm-12.padding-left-30.user-infos');
+        if (userInfosContainer) {
+            userInfosContainer.style.visibility = 'visible';
+            userInfosContainer.style.display = 'block';
+        }
+
+        const userBanner = document.getElementById("attendance_container");
+        userBanner.style.paddingTop = "60px;";
+
     }, 2000)
 }
 
-async function displayTCLBus() {
-    const rowElem = document.querySelector(".container-fullsize.full-width.fixed-height");
-    if (!rowElem) return;
+// Prevent multiple executions
+if (!window.__42_FRIENDS_LOADED__) {
+    window.__42_FRIENDS_LOADED__ = true;
 
-    const tclBusContainer = document.createElement("div");
-    tclBusContainer.className = "col-lg-4 col-md-6 col-xs-12 fixed-height";
-
-    const inner = document.createElement("div");
-    inner.className = "container-inner-item boxed agenda-container";
-
-    const title = document.createElement("h4");
-    title.className = "profile-title";
-    title.textContent = "Next TCL Depard";
-
-    const menu = document.createElement("span");
-    menu.className = "pull-right";
-
-    const dropDown = document.createElement("span");
-    dropDown.className = "dropdown event_search_dropdown";
-
-    const dropDownTitle = document.createElement("a");
-    dropDownTitle.className = "dropdown-toggle btn simple-link";
-    dropDownTitle.setAttribute("data-toggle", "dropdown");
-    dropDownTitle.href = "#";
-    dropDownTitle.id = "dropdownMenuTCLBus";
-    dropDownTitle.role = "button";
-    dropDownTitle.setAttribute("aria-expanded", "false");
-    dropDownTitle.textContent = "Select Route ▾";
-    // const dropDownInput = document.createElement("input");
-    // dropDownTitle.onclick = () => {setTimeout(() => dropDownInput.focus(), 10)}
-
-    const dropDownContent = document.createElement("div");
-    dropDownContent.setAttribute("aria-labelledby", "dropdownMenuTCLBus");
-    dropDownContent.className = "dropdown-menu pull-right";
-    dropDownContent.style = "top: 21px; padding: .25rem; min-width: 150px; font-size: unset";
-
-    const dropDownContentInner = document.createElement("div");
-    dropDownContentInner.className = "event_search_form ul";
-    dropDownContentInner.style = "display: flex; flex-direction: column; align-items: center;";
-
-    const selectStartTitle = document.createElement("div");
-    selectStartTitle.textContent = 'From :'
-
-    const selectStartElement = document.createElement("select");
-    selectStartElement.name = "Start";
-    selectStartElement.style = "margin: 10px; padding: 5px;";
-    selectStartElement.onclick = (e) => {e.stopPropagation()}
-
-    const selectEndTitle = document.createElement("div");
-    selectEndTitle.textContent = 'To :'
-    selectEndTitle.style = "margin-top: 20px;"
-
-    const selectEndElement = document.createElement("select");
-    selectEndElement.name = "End";
-    selectEndElement.style = "margin: 10px; padding: 5px;";
-    selectEndElement.onclick = (e) => {e.stopPropagation()}
-
-    function saveTCLSelection(start, end) {
-        sessionStorage.setItem("tcl_start", start);
-        sessionStorage.setItem("tcl_end", end);
-    }
-    
-    function loadTCLSelection() {
-        return {
-            start: sessionStorage.getItem("tcl_start") || "",
-            end: sessionStorage.getItem("tcl_end") || "",
-        };
-    }
-
-    dropDownContentInner.appendChild(selectStartTitle);
-    dropDownContentInner.appendChild(selectStartElement);
-    dropDownContentInner.appendChild(selectEndTitle);
-    dropDownContentInner.appendChild(selectEndElement);
-
-    const url = "https://data.grandlyon.com/fr/datapusher/ws/rdata/tcl_sytral.tclarret/all.json?maxfeatures=-1&start=1&filename=points-arret-reseau-transports-commun-lyonnais";
-
-    fetch(url)
-    .then(response => response.json())
-    .then(data => {
-        const noms = data.values
-        .map(value => value.nom)
-        .filter((nom, index, self) => nom && self.indexOf(nom) === index)
-        .sort()
-
-        const savedSelections = loadTCLSelection();
-
-        noms.forEach(nom => {
-            const option = document.createElement("option");
-            option.value = nom;
-            option.textContent = nom;
-
-            if (nom === savedSelections.start) option.selected = true;
-            selectStartElement.appendChild(option);
-
-            const optionClone = option.cloneNode(true);
-            if (nom === savedSelections.end) optionClone.selected = true;
-            selectEndElement.appendChild(optionClone);
-        });
-    })
-    .catch(error => console.error("Erreur :", error));
-
-    selectStartElement.addEventListener("change", () => {
-        saveTCLSelection(selectStartElement.value, selectEndElement.value);
-    });
-    
-    selectEndElement.addEventListener("change", () => {
-        saveTCLSelection(selectStartElement.value, selectEndElement.value);
-    });
-
-    
-
-
-
-    dropDownContent.appendChild(dropDownContentInner);
-    dropDown.appendChild(dropDownTitle);
-    dropDown.appendChild(dropDownContent);
-    menu.appendChild(dropDown);
-    title.appendChild(menu);
-
-    const content = document.createElement("div");
-    content.className = "overflowable-item";
-    content.style = "width: 100%; height: 100%;"
-
-    inner.appendChild(title);
-    inner.appendChild(content);
-    tclBusContainer.appendChild(inner);
-
-    rowElem.firstElementChild.insertBefore(tclBusContainer, rowElem.firstElementChild.firstChild);
+    displayLogtime();
+    displayFriends();
+    betterDisplay();
 }
-
-displayLogtime();
-displayTCLBus();
-displayFriends();
-betterDisplay();

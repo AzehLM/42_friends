@@ -126,11 +126,11 @@ function displayLogtime(depth = 0) {
     let containerAvailability = document.getElementById("attendance_container");
 
     // Check for test override
-    const testHours = localStorage.getItem("test_monthly_hours");
-    if (testHours) {
-        const testMinutes = localStorage.getItem("test_monthly_minutes") || "0";
-        logtimeValue = `5h30 (${testHours}h${testMinutes.padStart(2, '0')})`;
-    }
+    // const testHours = localStorage.getItem("test_monthly_hours");
+    // if (testHours) {
+    //     const testMinutes = localStorage.getItem("test_monthly_minutes") || "0";
+    //     logtimeValue = `5h30 (${testHours}h${testMinutes.padStart(2, '0')})`;
+    // }
 
     const logtimeText = document.createElement("div");
     logtimeText.style.cssText = "width: 100%; text-align: center; font-size: 12px; padding-top: 5px; padding-left: 30px;";
@@ -149,11 +149,9 @@ function displayLogtime(depth = 0) {
                 const monthlyMinutes = parseInt(monthlyMatch[2]);
                 const totalMonthlyHours = monthlyHours + monthlyMinutes / 60;
 
-                // Calculate required hours for the month
                 const workingDays = getWorkingDaysInMonth();
                 const requiredHours = workingDays * 7;
 
-                // Calculate ratio and get color
                 const ratio = totalMonthlyHours / requiredHours;
                 const color = getProgressColor(ratio);
 
@@ -172,8 +170,8 @@ function displayLogtime(depth = 0) {
     containerAvailability.appendChild(logtimeText);
 
     // Add testing controls (comment out when done testing)
-    const testContainer = document.createElement("div");
-    testContainer.style.cssText = "width: 100%; text-align: center; font-size: 11px; padding: 10px; background: #2a2d35; border-radius: 5px; margin-top: 10px;";
+    // const testContainer = document.createElement("div");
+    // testContainer.style.cssText = "width: 100%; text-align: center; font-size: 11px; padding: 10px; background: #2a2d35; border-radius: 5px; margin-top: 10px;";
 
     const workingDays = getWorkingDaysInMonth();
     const requiredHours = workingDays * 7;
@@ -642,6 +640,7 @@ async function displayFriends() {
     const menu = document.createElement("span");
     menu.className = "pull-right";
 
+    // Dropdown Add Friend
     const dropDown = document.createElement("span");
     dropDown.className = "dropdown event_search_dropdown";
 
@@ -858,7 +857,14 @@ function betterDisplay() {
             userInfosContainer.style.display = 'block';
         }
 
-        const userBanner = document.getElementById("attendance_container");
+        // Modifier la largeur de la box user-header-box infos
+        // const infosBox = document.querySelector('.user-header-box.infos');
+        // if (infosBox) {
+        //     infosBox.style.maxWidth = '65%';
+        //     infosBox.style.width = '65%';
+        // }
+
+        const userBanner = document.getElementById("attendance_container");//document.getElementsByClassName("container-inner-item profile-item-top profile-banner home-banner flex flex-direction-row");
         userBanner.style.paddingTop = "60px;";
 
     }, 2000)

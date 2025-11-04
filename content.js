@@ -111,7 +111,7 @@ function getProgressColor(ratio) {
     return `rgb(${r}, ${g}, ${b})`;
 }
 
-function displayLogtime(depth = 0) {
+async function displayLogtime(depth = 0) {
     const container = document.getElementById("user-locations");
     if (!container) return;
 
@@ -135,88 +135,85 @@ function displayLogtime(depth = 0) {
     const logtimeText = document.createElement("div");
     logtimeText.style.cssText = "width: 100%; text-align: center; font-size: 12px; padding-top: 5px; padding-left: 30px;";
 
-    // Parse the logtime value to extract daily and monthly hours
-    if (logtimeValue && logtimeValue.includes("(")) {
-        const parts = logtimeValue.match(/^(.+?)\s*\((.+?)\)$/);
-        if (parts) {
-            const dailyTime = parts[1]; // e.g., "5h30"
-            const monthlyTime = parts[2]; // e.g., "120h45"
-
-            // Parse monthly hours
-            const monthlyMatch = monthlyTime.match(/(\d+)h(\d+)/);
-            if (monthlyMatch) {
-                const monthlyHours = parseInt(monthlyMatch[1]);
-                const monthlyMinutes = parseInt(monthlyMatch[2]);
-                const totalMonthlyHours = monthlyHours + monthlyMinutes / 60;
-
-                const workingDays = getWorkingDaysInMonth();
-                const requiredHours = workingDays * 7;
-
-                const ratio = totalMonthlyHours / requiredHours;
-                const color = getProgressColor(ratio);
-
-                // Create the text with colored monthly time
-                logtimeText.innerHTML = `Current Logtime ${dailyTime} (<span style="color: ${color}; font-weight: bold;">${monthlyTime}</span>)`;
-            } else {
-                logtimeText.textContent = "Current Logtime " + logtimeValue;
+    // Parse the daily logtime value
+    let dailyTime = "0h00";
+    if (logtimeValue) {
+        if (logtimeValue.includes("(")) {
+            const parts = logtimeValue.match(/^(.+?)\s*\((.+?)\)$/);
+            if (parts) {
+                dailyTime = parts[1]; // e.g., "5h30"
             }
         } else {
-            logtimeText.textContent = "Current Logtime " + logtimeValue;
+            dailyTime = logtimeValue;
         }
-    } else {
-        logtimeText.textContent = "Current Logtime " + (logtimeValue || "N/A");
+    }
+
+    // Fetch monthly logtime data
+    try {
+        // Get the current user's login from the page
+    const userLoginElement = document.querySelector('.user-primary');
+    const userLogin = userLoginElement
+        ? userLoginElement.textContent.trim().split('\n').filter(line => line.trim()).pop()
+        : null;
+
+        console.log("TEST\n" + userLogin);
+
+        if (!userLogin) {
+            logtimeText.textContent = `Current Logtime ${dailyTime} (N/A)`;
+            containerAvailability.appendChild(logtimeText);
+            return;
+        }
+
+        // Fetch the user's location stats
+        const log_time_object = await fetch(`https://translate.intra.42.fr/users/${userLogin}/locations_stats.json`, {
+            credentials: "include",
+        }).then(res => res.json());
+
+        // Calculate monthly hours
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = today.getMonth();
+
+        // Get all days from the 1st of the month to today
+        const firstDayOfMonth = new Date(year, month, 1);
+        let totalMonthlyMinutes = 0;
+
+        for (let day = 1; day <= today.getDate(); day++) {
+            // Format date string directly to avoid timezone issues
+            const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+            // Get logtime for this day if it exists
+            if (log_time_object[dateString]) {
+                const timeMatch = log_time_object[dateString].match(/^(\d+):(\d+):(\d+)/);
+                if (timeMatch) {
+                    const hours = parseInt(timeMatch[1]);
+                    const minutes = parseInt(timeMatch[2]);
+                    totalMonthlyMinutes += hours * 60 + minutes;
+                }
+            }
+        }
+
+        // Convert total minutes to hours and minutes
+        const monthlyHours = Math.floor(totalMonthlyMinutes / 60);
+        const monthlyMinutes = totalMonthlyMinutes % 60;
+        const monthlyTime = `${monthlyHours}h${monthlyMinutes.toString().padStart(2, '0')}`;
+
+        // Calculate required hours and color
+        const totalMonthlyHoursDecimal = monthlyHours + monthlyMinutes / 60;
+        const workingDays = getWorkingDaysInMonth();
+        const requiredHours = workingDays * 7;
+        const ratio = totalMonthlyHoursDecimal / requiredHours;
+        const color = getProgressColor(ratio);
+
+        // Create the text with colored monthly time
+        logtimeText.innerHTML = `Current Logtime ${dailyTime} (<span style="color: ${color}; font-weight: bold;">${monthlyTime}</span>)`;
+
+    } catch (error) {
+        console.error("Error fetching monthly logtime:", error);
+        logtimeText.textContent = `Current Logtime ${dailyTime} (Error loading monthly data)`;
     }
 
     containerAvailability.appendChild(logtimeText);
-
-    // Add testing controls (comment out when done testing)
-    // const testContainer = document.createElement("div");
-    // testContainer.style.cssText = "width: 100%; text-align: center; font-size: 11px; padding: 10px; background: #2a2d35; border-radius: 5px; margin-top: 10px;";
-
-    const workingDays = getWorkingDaysInMonth();
-    const requiredHours = workingDays * 7;
-
-    // testContainer.innerHTML = `
-    //     <div style="margin-bottom: 8px; color: #a0a0a0;">
-    //         Testing Controls (Working days: ${workingDays}, Required: ${requiredHours}h)
-    //     </div>
-    //     <div style="display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;">
-    //         <label style="color: #ccc;">Monthly hours:</label>
-    //         <input type="number" id="test-hours-input" min="0" max="999" placeholder="Hours"
-    //                value="${testHours || ''}"
-    //                style="width: 60px; padding: 4px; background: #373c48; border: 1px solid #555; color: white; border-radius: 3px;">
-    //         <input type="number" id="test-minutes-input" min="0" max="59" placeholder="Min"
-    //                value="${localStorage.getItem("test_monthly_minutes") || ''}"
-    //                style="width: 50px; padding: 4px; background: #373c48; border: 1px solid #555; color: white; border-radius: 3px;">
-    //         <button id="apply-test-btn" style="padding: 4px 12px; background: #4a90e2; color: white; border: none; border-radius: 3px; cursor: pointer;">Apply</button>
-    //         <button id="reset-test-btn" style="padding: 4px 12px; background: #e24a4a; color: white; border: none; border-radius: 3px; cursor: pointer;">Reset</button>
-    //     </div>
-    //     <div style="margin-top: 8px; font-size: 10px; color: #888;">
-    //         Quick test:
-    //         <span style="cursor: pointer; color: #FFFAE6; margin: 0 5px;" onclick="document.getElementById('test-hours-input').value='0'; document.getElementById('test-minutes-input').value='0'; document.getElementById('apply-test-btn').click();">0h (cosmic latte)</span>
-    //         <span style="cursor: pointer; color: #F7CEE2; margin: 0 5px;" onclick="document.getElementById('test-hours-input').value='${Math.floor(requiredHours * 0.5)}'; document.getElementById('test-minutes-input').value='0'; document.getElementById('apply-test-btn').click();">${Math.floor(requiredHours * 0.5)}h (rose)</span>
-    //         <span style="cursor: pointer; color: rgb(175, 195, 220); margin: 0 5px;" onclick="document.getElementById('test-hours-input').value='${requiredHours}'; document.getElementById('test-minutes-input').value='0'; document.getElementById('apply-test-btn').click();">${requiredHours}h (azure)</span>
-    //     </div>
-    // `;
-
-    // containerAvailability.appendChild(testContainer);
-
-    // document.getElementById("apply-test-btn").onclick = () => {
-    //     const hours = document.getElementById("test-hours-input").value;
-    //     const minutes = document.getElementById("test-minutes-input").value || "0";
-    //     if (hours !== "") {
-    //         localStorage.setItem("test_monthly_hours", hours);
-    //         localStorage.setItem("test_monthly_minutes", minutes);
-    //         location.reload();
-    //     }
-    // };
-
-    // document.getElementById("reset-test-btn").onclick = () => {
-    //     localStorage.removeItem("test_monthly_hours");
-    //     localStorage.removeItem("test_monthly_minutes");
-    //     location.reload();
-    // };
-
 }
 
 function getMondayAndSunday(dateStr) {

@@ -206,7 +206,13 @@ async function displayLogtime(depth = 0) {
         const color = getProgressColor(ratio);
 
         // Create the text with colored monthly time
-        logtimeText.innerHTML = `Current Logtime ${dailyTime} (<span style="color: ${color}; font-weight: bold;">${monthlyTime}</span>)`;
+        logtimeText.textContent = `Current Logtime ${dailyTime} (`;
+        const monthlySpan = document.createElement("span");
+        monthlySpan.style.color = color;
+        monthlySpan.style.fontWeight = "bold";
+        monthlySpan.textContent = monthlyTime;
+        logtimeText.appendChild(monthlySpan);
+        logtimeText.appendChild(document.createTextNode(")"));
 
     } catch (error) {
         console.error("Error fetching monthly logtime:", error);
@@ -473,7 +479,9 @@ function displayFriend(content, friend, date_range, today, friend_object, log_ti
         </svg>
         `;
 
-        deleteFriend.innerHTML = crossSVG;
+        const parser = new DOMParser();
+        const svgDoc = parser.parseFromString(crossSVG, "image/svg+xml");
+        deleteFriend.appendChild(svgDoc.documentElement);
         const deleteFriendTooltip = addTooltipOnHover(deleteFriend, "Delete Friend")
         deleteFriend.onclick = (event) => {
             event.stopPropagation();

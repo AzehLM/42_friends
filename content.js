@@ -538,11 +538,21 @@ async function renderFriendsList(content, sortPreference) {
     // Show loading indicator
     const loadingDiv = document.createElement("div");
     loadingDiv.style = "display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; color: #f2f2f2;";
-    loadingDiv.innerHTML = `
-        <div style="font-size: 16px; margin-bottom: 10px;">Loading friends...</div>
-        <div style="width: 30px; height: 30px; border: 3px solid #f2f2f2; border-top: 3px solid transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-        <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
-    `;
+
+    const loadingText = document.createElement("div");
+    loadingText.style = "font-size: 16px; margin-bottom: 10px;";
+    loadingText.textContent = "Loading friends...";
+
+    const spinner = document.createElement("div");
+    spinner.style = "width: 30px; height: 30px; border: 3px solid #f2f2f2; border-top: 3px solid transparent; border-radius: 50%; animation: spin 1s linear infinite;";
+
+    const style = document.createElement("style");
+    style.textContent = "@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }";
+
+    loadingDiv.appendChild(loadingText);
+    loadingDiv.appendChild(spinner);
+    loadingDiv.appendChild(style);
+
     content.appendChild(loadingDiv);
 
     if (!FRIEND_LIST.length) {
@@ -597,14 +607,26 @@ async function renderFriendsList(content, sortPreference) {
         }
 
     } catch (error) {
-        content.innerHTML = '';
         const errorDiv = document.createElement("div");
         errorDiv.style = "display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; color: #f2f2f2; padding: 20px; text-align: center;";
-        errorDiv.innerHTML = `
-            <div style="font-size: 16px; margin-bottom: 10px; color: #ff6b6b;">Failed to load friends</div>
-            <div style="font-size: 14px; margin-bottom: 15px; opacity: 0.8;">There was an error loading your friend list</div>
-            <button id="retry-friends-btn" style="padding: 8px 16px; background-color: #4a90e2; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">Retry</button>
-        `;
+
+        const errorTitle = document.createElement("div");
+        errorTitle.style = "font-size: 16px; margin-bottom: 10px; color: #ff6b6b;";
+        errorTitle.textContent = "Failed to load friends";
+
+        const errorMessage = document.createElement("div");
+        errorMessage.style = "font-size: 14px; margin-bottom: 15px; opacity: 0.8;";
+        errorMessage.textContent = "There was an error loading your friend list";
+
+        const retryButton = document.createElement("button");
+        retryButton.id = "retry-friends-btn";
+        retryButton.style = "padding: 8px 16px; background-color: #4a90e2; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;";
+        retryButton.textContent = "Retry";
+
+        errorDiv.appendChild(errorTitle);
+        errorDiv.appendChild(errorMessage);
+        errorDiv.appendChild(retryButton);
+
         content.appendChild(errorDiv);
 
         // Add retry functionality

@@ -1,22 +1,22 @@
 {
-    "manifest_version": 3,
-    "name": "42 Friends",
-    "version": "1.0",
-    "description": "Add a 'friend' system for the 42 intra.",
-    "content_scripts": [
-      {
-        "matches": ["https://profile.intra.42.fr/*"],
-        "js": ["content.js"]
-      }
-    ],
-    "permissions": ["scripting", "activeTab", "tabs"],
-    "browser_specific_settings": {
-      "gecko": {
-        "id": "42friends@local",
-        "strict_min_version": "109.0",
-        "data_collection_permissions": {
-          "required": []
-        }
+  "manifest_version": 3,
+  "name": "42 Friends",
+  "version": "2.0",
+  "description": "Add a 'friend' system for the 42 intra.",
+  "content_scripts": [
+    {
+      "matches": ["https://profile.intra.42.fr/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "permissions": ["scripting", "activeTab", "tabs"],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "42friends@local",
+      "strict_min_version": "109.0",
+      "data_collection_permissions": {
+        "required": ["none"]
       }
     }
   }
+}

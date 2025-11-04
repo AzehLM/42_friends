@@ -9,6 +9,14 @@
         "js": ["content.js"]
       }
     ],
-    "permissions": ["scripting", "activeTab", "tabs"]
+    "permissions": ["scripting", "activeTab", "tabs"],
+    "browser_specific_settings": {
+      "gecko": {
+        "id": "42friends@local",
+        "strict_min_version": "109.0",
+        "data_collection_permissions": {
+          "required": false
+        }
+      }
+    }
   }
-  

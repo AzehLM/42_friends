@@ -1,6 +1,6 @@
 # 42 Friends
 
-A Chrome extension that adds a friend system to the 42 intra.
+A Chrome extension that adds a friend system to the 42 intra and displays monthly logtime below your weekly attendance.
 
 ## Installation
 

@@ -48,6 +48,20 @@ function getFrancePublicHolidays(year) {
     return holidays;
 }
 
+// Get the days to remove for current month from localStorage
+function getDaysToRemove() {
+    const now = new Date();
+    const key = `days_to_remove_${now.getFullYear()}_${now.getMonth()}`;
+    return parseInt(localStorage.getItem(key)) || 0;
+}
+
+// Save days to remove for current month
+function setDaysToRemove(days) {
+    const now = new Date();
+    const key = `days_to_remove_${now.getFullYear()}_${now.getMonth()}`;
+    localStorage.setItem(key, days);
+}
+
 // Calculate working days in current month (excluding weekends and France public holidays)
 function getWorkingDaysInMonth() {
     const now = new Date();
@@ -67,21 +81,17 @@ function getWorkingDaysInMonth() {
         const dayOfWeek = currentDate.getDay();
         const dateString = currentDate.toISOString().split('T')[0];
 
-        // Skip weekends (0 = Sunday, 6 = Saturday)
         if (dayOfWeek === 0 || dayOfWeek === 6) continue;
 
-        // Skip public holidays
         if (holidayStrings.includes(dateString)) continue;
 
         workingDays++;
     }
 
-    return workingDays;
+    return workingDays - getDaysToRemove();
 }
 
-// Convert progress ratio (0-1) to color gradient using custom palette
 function getProgressColor(ratio) {
-    // Clamp ratio between 0 and 1
     ratio = Math.max(0, Math.min(1, ratio));
 
     // Color palette from warm to cool tones
@@ -148,13 +158,9 @@ async function displayLogtime(depth = 0) {
         }
     }
 
-    // Fetch monthly logtime data
     try {
-        // Get the current user's login from the page
-    const userLoginElement = document.querySelector('.user-primary');
-    const userLogin = userLoginElement
-        ? userLoginElement.textContent.trim().split('\n').filter(line => line.trim()).pop()
-        : null;
+        const userLoginElement = document.querySelector('.user-primary');
+        const userLogin = userLoginElement ? userLoginElement.textContent.trim().split('\n').filter(line => line.trim()).pop() : null;
 
         console.log("TEST\n" + userLogin);
 
@@ -164,25 +170,20 @@ async function displayLogtime(depth = 0) {
             return;
         }
 
-        // Fetch the user's location stats
         const log_time_object = await fetch(`https://translate.intra.42.fr/users/${userLogin}/locations_stats.json`, {
             credentials: "include",
         }).then(res => res.json());
 
-        // Calculate monthly hours
         const today = new Date();
         const year = today.getFullYear();
         const month = today.getMonth();
 
-        // Get all days from the 1st of the month to today
         const firstDayOfMonth = new Date(year, month, 1);
         let totalMonthlyMinutes = 0;
 
         for (let day = 1; day <= today.getDate(); day++) {
-            // Format date string directly to avoid timezone issues
             const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-            // Get logtime for this day if it exists
             if (log_time_object[dateString]) {
                 const timeMatch = log_time_object[dateString].match(/^(\d+):(\d+):(\d+)/);
                 if (timeMatch) {
@@ -193,26 +194,144 @@ async function displayLogtime(depth = 0) {
             }
         }
 
-        // Convert total minutes to hours and minutes
         const monthlyHours = Math.floor(totalMonthlyMinutes / 60);
         const monthlyMinutes = totalMonthlyMinutes % 60;
         const monthlyTime = `${monthlyHours}h${monthlyMinutes.toString().padStart(2, '0')}`;
 
-        // Calculate required hours and color
         const totalMonthlyHoursDecimal = monthlyHours + monthlyMinutes / 60;
         const workingDays = getWorkingDaysInMonth();
         const requiredHours = workingDays * 7;
+        // console.log("required hours: " + requiredHours); /* debug */
         const ratio = totalMonthlyHoursDecimal / requiredHours;
         const color = getProgressColor(ratio);
 
-        // Create the text with colored monthly time
         logtimeText.textContent = `Current Logtime ${dailyTime} (`;
+
+        const dropdownContainer = document.createElement("span");
+        dropdownContainer.className = "dropdown";
+        dropdownContainer.style.position = "relative";
+        dropdownContainer.style.display = "inline-block";
+
         const monthlySpan = document.createElement("span");
         monthlySpan.style.color = color;
         monthlySpan.style.fontWeight = "bold";
+        monthlySpan.style.cursor = "pointer";
+        monthlySpan.style.transition = "opacity 0.2s";
         monthlySpan.textContent = monthlyTime;
-        logtimeText.appendChild(monthlySpan);
+        monthlySpan.addEventListener("mouseover", () => monthlySpan.style.opacity = "0.7");
+        monthlySpan.addEventListener("mouseout", () => monthlySpan.style.opacity = "1");
+
+        const dropdownMenu = document.createElement("div");
+        dropdownMenu.style.cssText = `
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #1e2229;
+            border: 1px solid #373c48;
+            border-radius: 5px;
+            padding: 12px;
+            min-width: 200px;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            margin-bottom: 8px;
+        `;
+
+        const dropdownTitle = document.createElement("div");
+        dropdownTitle.style.cssText = "color: #f2f2f2; font-size: 12px; margin-bottom: 8px; font-weight: bold;";
+        dropdownTitle.textContent = "Adjust Days Off";
+
+        const infoDisplay = document.createElement("div");
+        infoDisplay.style.cssText = "color: #888; font-size: 11px; margin-bottom: 10px;";
+        const baseWorkingDays = workingDays + getDaysToRemove();
+        infoDisplay.innerHTML = `Working days: ${baseWorkingDays}<br>After adjustment: ${workingDays}`;
+
+        const inputContainer = document.createElement("div");
+        inputContainer.style.cssText = "display: flex; align-items: center; gap: 8px;";
+
+        const inputLabel = document.createElement("span");
+        inputLabel.style.cssText = "color: #f2f2f2; font-size: 12px;";
+        inputLabel.textContent = "Days off:";
+
+        const daysInput = document.createElement("input");
+        daysInput.type = "number";
+        daysInput.min = "0";
+        daysInput.max = String(baseWorkingDays);
+        daysInput.value = getDaysToRemove();
+        daysInput.style.cssText = `
+            width: 60px;
+            padding: 5px 8px;
+            color: white;
+            background-color: #373c48;
+            border: 1px solid #4a4f5a;
+            border-radius: 4px;
+            outline: none;
+            font-size: 12px;
+            text-align: center;
+        `;
+        daysInput.addEventListener("focus", () => daysInput.style.borderColor = "#4a90e2");
+        daysInput.addEventListener("blur", () => daysInput.style.borderColor = "#4a4f5a");
+
+        const saveButton = document.createElement("button");
+        saveButton.textContent = "Save";
+        saveButton.style.cssText = `
+            padding: 5px 12px;
+            background-color: #4a90e2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background-color 0.2s;
+        `;
+        saveButton.addEventListener("mouseover", () => saveButton.style.backgroundColor = "#3a7bc8");
+        saveButton.addEventListener("mouseout", () => saveButton.style.backgroundColor = "#4a90e2");
+
+        saveButton.onclick = (e) => {
+            e.stopPropagation();
+            const days = Math.max(0, Math.min(parseInt(daysInput.value) || 0, baseWorkingDays));
+            setDaysToRemove(days);
+            location.reload();
+        };
+
+        daysInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                saveButton.click();
+            }
+            e.stopPropagation();
+        });
+
+        inputContainer.appendChild(inputLabel);
+        inputContainer.appendChild(daysInput);
+        inputContainer.appendChild(saveButton);
+
+        dropdownMenu.appendChild(dropdownTitle);
+        dropdownMenu.appendChild(infoDisplay);
+        dropdownMenu.appendChild(inputContainer);
+
+        monthlySpan.onclick = (e) => {
+            e.stopPropagation();
+            const isVisible = dropdownMenu.style.display === "block";
+            dropdownMenu.style.display = isVisible ? "none" : "block";
+            if (!isVisible) {
+                setTimeout(() => daysInput.focus(), 10);
+            }
+        };
+
+        document.addEventListener("click", (e) => {
+            if (!dropdownContainer.contains(e.target)) {
+                dropdownMenu.style.display = "none";
+            }
+        });
+
+        dropdownContainer.appendChild(monthlySpan);
+        dropdownContainer.appendChild(dropdownMenu);
+
+        logtimeText.appendChild(dropdownContainer);
         logtimeText.appendChild(document.createTextNode(")"));
+
+        addTooltipOnHover(monthlySpan, "Click to adjust days off");
 
     } catch (error) {
         console.error("Error fetching monthly logtime:", error);
